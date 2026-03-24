@@ -12,7 +12,27 @@ jobs:
       pull-requests: write
 
     steps:
+      - name: Check changed files
+        id: files
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const files = await github.paginate(
+              github.rest.pulls.listFiles,
+              {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: context.payload.pull_request.number,
+                per_page: 100
+              }
+            );
+            const onlyMarkdown =
+              files.length > 0 &&
+              files.every((file) => /\.(md|markdown)$/i.test(file.filename));
+            core.setOutput("only_markdown", String(onlyMarkdown));
+
       - name: Auto merge pull request
+        if: steps.files.outputs.only_markdown == 'true'
         uses: pascalgn/automerge-action@v0.16.4
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
