@@ -1,0 +1,58 @@
+name: Auto Merge PRs
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  auto-merge:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Check merge conditions
+        id: check
+        run: |
+          BASE_SHA=${{ github.event.pull_request.base.sha }}
+          HEAD_SHA=${{ github.event.pull_request.head.sha }}
+
+          # Get all changed files
+          CHANGED_FILES=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")
+
+          # Check condition 1: only .md files changed
+          NON_MD=$(echo "$CHANGED_FILES" | grep -v '\.md$' || true)
+          if [ -n "$NON_MD" ]; then
+            echo "Non-md files changed:"
+            echo "$NON_MD"
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Check condition 2: all touched md files <= 10k chars
+          for file in $CHANGED_FILES; do
+            if [ -f "$file" ]; then
+              CHARS=$(wc -m < "$file")
+              if [ "$CHARS" -gt 10000 ]; then
+                echo "$file has $CHARS chars (> 10000)"
+                echo "eligible=false" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+            fi
+          done
+
+          echo "eligible=true" >> "$GITHUB_OUTPUT"
+
+      - name: Auto merge pull request
+        if: steps.check.outputs.eligible == 'true'
+        uses: pascalgn/automerge-action@v0.16.4
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MERGE_METHOD: merge
+          MERGE_LABELS: ""
