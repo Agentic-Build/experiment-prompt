@@ -43,3 +43,5 @@
 
 語言偏好：Rust / SvelteKit / Tailwind CSS / PNPM / Vite Plus
 部署環境：Kubernetes
+
+盡量使用手機等現有硬體，不用額外硬體，但保留未來擴充的彈性（如感應器）的可能性。
