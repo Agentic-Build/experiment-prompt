@@ -94,6 +94,20 @@
 * 異常預警與治理：針對文件到期、準時率下降、滿意度偏低、客訴升高等情境提供規則化預警與後續治理流程。
 * 稽核與查詢：管理端需可查詢關鍵操作、審核歷程與帳務調整紀錄，以支援稽核與責任歸屬。
 
+### 4. 後端 API 契約、OpenAPI 與 MCP
+
+核心目標：讓前後端、內外部整合、測試流程與 AI agent 共享一致且可機器驗證的正式契約，避免文件、實作、SDK 與 agent 工具漂移。
+
+* OpenAPI 為正式契約：所有對前端、商家後台、管理後台與外部整合暴露的 HTTP API，皆必須完整定義於 OpenAPI 規格；不得存在只有程式實作、但未出現在規格中的正式使用端點。
+* 規格完整性：OpenAPI 文件需完整描述路徑、HTTP method、query/path/header 參數、request body、response body、錯誤模型、認證方式、分頁/排序/篩選規則、列舉值與欄位驗證限制，避免前端或整合方靠猜測串接。
+* 契約一致性：實際後端行為需與 OpenAPI 規格一致，包含狀態碼、欄位型別、必填欄位、錯誤碼、驗證規則與範例；CI 需能阻擋規格與實作不一致的變更。
+* 文件與可用性：系統需產出機器可讀的 `openapi.json` 或 `openapi.yaml`，並提供人可讀的 API 文件介面，方便前端、測試與整合人員查閱。
+* 型別與 SDK 生成：前端與任何內部整合若需存取後端 API，應優先由 OpenAPI 規格產生型別、client 或測試契約，降低手寫介面定義造成的漂移風險。
+* MCP 支援：系統需另外提供標準 MCP server，供 AI agent 或內部自動化流程存取訂餐、商家管理、對帳查詢、文件審核與異常治理等能力；不得只提供 HTTP API 而缺少 agent 可直接使用的 MCP 介面。
+* MCP 設計原則：MCP 的 tools、resources 與 prompts（若有）需建立在與 HTTP API 相同的核心 domain/service 邏輯上，不得複製一套獨立且難以驗證的商業規則；權限、審計、驗證與錯誤模型需可追蹤且一致。
+* MCP 能力邊界：MCP 至少需支援高價值、可審計的 read/write 操作，並清楚區分查詢、下單、核銷、審核、對帳匯出等工具；任何具破壞性或高風險的操作都必須受權限控管、操作留痕與明確錯誤回報保護。
+* 變更原則：MVP 階段不以維持舊版 API 相容為優先；若 API 設計需要破壞式調整，應直接更新 OpenAPI 契約、同步調整呼叫端與測試，而不是保留未驗證的 legacy/fallback 路徑。
+
 ---
 
 ## Evaluation Criteria
@@ -101,14 +115,21 @@
 * **需求轉換與範圍控制**：評估是否正確實作 MVP，並將推薦、進階分析等第二階段能力維持在非核心範圍
 * **程式碼品質**：代碼的整潔度、易讀性、註解完整性，並確保專案結構符合開發規範
 * **架構設計與可擴展性**：模組化程度、是否易於擴充新功能（像是增加評價系統）、資料模型設計
+* **API 契約品質**：檢查 OpenAPI 規格是否完整、可讀、可機器驗證，且是否覆蓋所有正式對外 HTTP API 與錯誤模型
+* **MCP 整合品質**：檢查是否提供可實際操作的 MCP server，tools/resources 定義是否清楚、權限邊界是否正確，且是否覆蓋主要 agent 整合情境
 * **系統測試與驗證**：檢查是否包含單元測試、整合測試，系統運行正確性
+* **契約一致性驗證**：檢查是否有自動化流程驗證 OpenAPI 規格、SDK/型別產物與後端實作一致，避免文件與行為漂移
+* **Agent 契約驗證**：檢查是否有自動化驗證 MCP tools 的輸入輸出、權限與錯誤處理，避免 agent 介面與實際業務規則脫節
 * **運維與可靠性**：系統穩定性、錯誤處理機制及部署後的自動化與監控能力
 
 ---
 
 ## Technical Constraints
 
-* 語言偏好：Rust / SvelteKit / Tailwind CSS / PNPM / Vite Plus
+* 語言偏好：Rust / SvelteKit / Tailwind CSS / PNPM
+* API 契約：後端所有正式對外 HTTP API 必須完整支援 OpenAPI 3.1，並輸出可機器讀取的規格檔與可瀏覽的 API 文件
+* Agent 整合：後端必須提供標準 MCP server，讓 AI agent 可安全存取主要業務能力；MCP 與 HTTP API 應共用同一套核心 domain/service 與授權邏輯
+* 開發模式：以 contract-first 或至少 contract-synchronized 的方式維護 API；任何 schema、狀態碼或欄位調整都必須同步更新 OpenAPI、測試與呼叫端
 * 部署環境：Kubernetes
 * 可觀測性：VictoriaMetrics / VictoriaLogs / VictoriaTraces / OpenTelemetry / Grafana
 * 硬體限制：盡量使用手機等現有硬體，不新增專用設備，但保留未來擴充感應器等設備的彈性
